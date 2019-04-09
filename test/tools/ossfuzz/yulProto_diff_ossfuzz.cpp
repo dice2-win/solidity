@@ -37,10 +37,10 @@ using namespace langutil;
 using namespace dev;
 using namespace yul::test;
 
-DEFINE_PROTO_FUZZER(Function const& _input)
+DEFINE_PROTO_FUZZER(Program const& _input)
 {
 	ProtoConverter converter;
-	string yul_source = converter.functionToString(_input);
+	string yul_source = converter.programToString(_input);
 	if (yul_source.size() > 600)
 		return;
 
