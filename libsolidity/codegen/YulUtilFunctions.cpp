@@ -485,6 +485,49 @@ string YulUtilFunctions::nextArrayElementFunction(ArrayType const& _type)
 	});
 }
 
+string YulUtilFunctions::mappingIndexAccessFunction(MappingType const& _mappingType, Type const& _keyType)
+{
+	solAssert(_keyType.sizeOnStack() <= 1, "");
+
+	string functionName = "mapping_index_access_" + _mappingType.identifier() + "_of_" + _keyType.identifier();
+	return m_functionCollector->createFunction(functionName, [&]() {
+		if (_keyType.isDynamicallySized())
+			return Whiskers(R"(
+				function <functionName>(slot <key>) -> dataSlot {
+					let pos := mload(<freeMemPtr>)
+					let end := <encode>(pos <key>)
+					mstore(end, slot)
+					dataSlot := keccak256(pos, add(end, 0x20))
+				}
+			)")
+			("functionName", functionName)
+			("key", _keyType.sizeOnStack() == 1 ? ", key" : "")
+			("freeMemPtr", to_string(CompilerUtils::freeMemoryPointer))
+			("encode", ABIFunctions(m_evmVersion, m_functionCollector).tupleEncoderPacked(
+				{&_keyType},
+				{_mappingType.keyType()}
+			))
+			.render();
+		else
+		{
+			solAssert(CompilerUtils::freeMemoryPointer >= 0x40, "");
+			Whiskers templ(R"(
+				function <functionName>(slot <key>) -> dataSlot {
+					mstore(0, <convertedKey>)
+					mstore(0x20, slot)
+					dataSlot := keccak256(0, 0x40)
+				}
+			)");
+			templ("functionName", functionName);
+			templ("key", _keyType.sizeOnStack() == 1 ? ", key" : "");
+			if (_keyType.sizeOnStack() == 0)
+				templ("convertedKey", conversionFunction(_keyType, *_mappingType.keyType()) + "()");
+			else
+				templ("convertedKey", conversionFunction(_keyType, *_mappingType.keyType()) + "(key)");
+			return templ.render();
+		}
+	});
+}
 
 string YulUtilFunctions::readFromStorage(Type const& _type, size_t _offset, bool _splitFunctionTypes)
 {

@@ -29,6 +29,7 @@
 #include <libyul/AsmData.h>
 #include <libyul/optimiser/ASTCopier.h>
 
+#include <libdevcore/Whiskers.h>
 #include <libdevcore/StringUtils.h>
 
 using namespace std;
@@ -358,6 +359,51 @@ bool IRGeneratorForStatements::visit(InlineAssembly const& _inlineAsm)
 
 	m_code << yul::AsmPrinter()(boost::get<yul::Block>(std::move(modified))) << "\n";
 	return false;
+}
+
+
+void IRGeneratorForStatements::endVisit(IndexAccess const& _indexAccess)
+{
+	Type const& baseType = *_indexAccess.baseExpression().annotation().type;
+
+	if (baseType.category() == Type::Category::Mapping)
+	{
+		solAssert(_indexAccess.indexExpression(), "Index expression expected.");
+
+		MappingType const& mappingType = dynamic_cast<MappingType const&>(baseType);
+		Type const& keyType = *_indexAccess.indexExpression()->annotation().type;
+		solAssert(keyType.sizeOnStack() <= 1, "");
+
+		string slot = m_context.newYulVariable();
+		Whiskers templ("let <slot> := <indexAccess>(<base> <key>)\n");
+		templ("slot", slot);
+		templ("indexAccess", m_utils.mappingIndexAccessFunction(mappingType, keyType));
+		templ("base", m_context.variable(_indexAccess.baseExpression()));
+		if (keyType.sizeOnStack() == 0)
+			templ("key", "");
+		else
+			templ("key", ", " + m_context.variable(*_indexAccess.indexExpression()));
+		m_code << templ.render();
+		setLValue(_indexAccess, make_unique<IRStorageItem>(
+			m_code,
+			m_context,
+			slot,
+			0,
+			*_indexAccess.annotation().type
+		));
+	}
+	else if (baseType.category() == Type::Category::Array)
+		solUnimplementedAssert(false, "");
+	else if (baseType.category() == Type::Category::FixedBytes)
+		solUnimplementedAssert(false, "");
+	else if (baseType.category() == Type::Category::TypeType)
+	{
+		solAssert(baseType.sizeOnStack() == 0, "");
+		solAssert(_indexAccess.annotation().type->sizeOnStack() == 0, "");
+		// no-op - this seems to be a lone array type (`structType[];`)
+	}
+	else
+		solAssert(false, "Index access only allowed for mappings or arrays.");
 }
 
 bool IRGeneratorForStatements::visit(Identifier const& _identifier)
