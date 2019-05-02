@@ -646,10 +646,6 @@ void SMTChecker::endVisit(FunctionCall const& _funCall)
 		visitGasLeft(_funCall);
 		break;
 	case FunctionType::Kind::Internal:
-		pushCallStack(&_funCall);
-		inlineFunctionCall(_funCall);
-		popCallStack();
-		break;
 	case FunctionType::Kind::External:
 	case FunctionType::Kind::DelegateCall:
 	case FunctionType::Kind::BareCall:
@@ -657,9 +653,7 @@ void SMTChecker::endVisit(FunctionCall const& _funCall)
 	case FunctionType::Kind::BareDelegateCall:
 	case FunctionType::Kind::BareStaticCall:
 	case FunctionType::Kind::Creation:
-		m_externalFunctionCallHappened = true;
-		resetStateVariables();
-		resetStorageReferences();
+		internalOrExternalFunctionCall(_funCall);
 		break;
 	case FunctionType::Kind::KECCAK256:
 	case FunctionType::Kind::ECRecover:
@@ -730,14 +724,7 @@ void SMTChecker::visitGasLeft(FunctionCall const& _funCall)
 void SMTChecker::inlineFunctionCall(FunctionCall const& _funCall)
 {
 	FunctionDefinition const* funDef = inlinedFunctionCallToDefinition(_funCall);
-	if (!funDef)
-	{
-		m_errorReporter.warning(
-			_funCall.location(),
-			"Assertion checker does not yet implement this type of function call."
-		);
-		return;
-	}
+	solAssert(funDef, "");
 
 	if (visitedFunction(funDef))
 		m_errorReporter.warning(
@@ -781,6 +768,22 @@ void SMTChecker::inlineFunctionCall(FunctionCall const& _funCall)
 		}
 		else if (returnParams.size() == 1)
 			defineExpr(_funCall, currentValue(*returnParams.front()));
+	}
+}
+
+void SMTChecker::internalOrExternalFunctionCall(FunctionCall const& _funCall)
+{
+	if (inlinedFunctionCallToDefinition(_funCall))
+	{
+		pushCallStack(&_funCall);
+		inlineFunctionCall(_funCall);
+		popCallStack();
+	}
+	else
+	{
+		m_externalFunctionCallHappened = true;
+		resetStateVariables();
+		resetStorageReferences();
 	}
 }
 
@@ -1901,7 +1904,16 @@ FunctionDefinition const* SMTChecker::inlinedFunctionCallToDefinition(FunctionCa
 		return nullptr;
 
 	FunctionType const& funType = dynamic_cast<FunctionType const&>(*_funCall.expression().annotation().type);
-	if (funType.kind() != FunctionType::Kind::Internal)
+	if (funType.kind() == FunctionType::Kind::External)
+	{
+		auto memberAccess = dynamic_cast<MemberAccess const*>(&_funCall.expression());
+		auto identifier = memberAccess ?
+			dynamic_cast<Identifier const*>(&memberAccess->expression()) :
+			nullptr;
+		if (!identifier || identifier->name() != "this")
+			return nullptr;
+	}
+	else if (funType.kind() != FunctionType::Kind::Internal)
 		return nullptr;
 
 	FunctionDefinition const* funDef = nullptr;
