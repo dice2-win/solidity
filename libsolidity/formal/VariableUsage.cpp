@@ -31,7 +31,11 @@ void VariableUsage::endVisit(Identifier const& _identifier)
 	solAssert(declaration, "");
 	if (VariableDeclaration const* varDecl = dynamic_cast<VariableDeclaration const*>(declaration))
 		if (_identifier.annotation().lValueRequested)
-			m_touchedVariables.insert(varDecl);
+		{
+			solAssert(m_outerFunction, "");
+			if (!varDecl->isLocalVariable() || varDecl->functionDefinition() == m_outerFunction)
+				m_touchedVariables.insert(varDecl);
+		}
 }
 
 void VariableUsage::endVisit(FunctionCall const& _funCall)
@@ -74,6 +78,7 @@ set<VariableDeclaration const*> VariableUsage::touchedVariables(ASTNode const& _
 	m_touchedVariables.clear();
 	m_functionPath.clear();
 	m_functionPath += _outerCallstack;
+	m_outerFunction = m_functionPath.back();
 	_node.accept(*this);
 	return m_touchedVariables;
 }

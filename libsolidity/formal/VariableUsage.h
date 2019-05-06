@@ -46,6 +46,7 @@ private:
 
 	std::set<VariableDeclaration const*> m_touchedVariables;
 	std::vector<FunctionDefinition const*> m_functionPath;
+	FunctionDefinition const* m_outerFunction = nullptr;
 };
 
 }
