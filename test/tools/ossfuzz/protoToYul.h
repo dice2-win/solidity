@@ -66,11 +66,11 @@ private:
 	void visit(TypedVarDecl const&);
 	void visit(UnaryOp const&);
 	void visit(AssignmentStatement const&);
-	void visit(MultiVarAssignmentStatement const&);
+	void visit(MultiAssignment const&);
 	void visit(IfStmt const&);
 	void visit(StoreFunc const&);
 	void visit(Statement const&);
-	void visit(Function const&);
+	void visit(FunctionDefinition const&);
 	void visit(ForStmt const&);
 	void visit(CaseStmt const&);
 	void visit(SwitchStmt const&);
@@ -83,14 +83,24 @@ private:
 	void visit(RetRevStmt const&);
 	void visit(SelfDestructStmt const&);
 	void visit(TerminatingStmt const&);
+	void visit(FunctionCallNoReturnVal const&);
+	void visit(FunctionCallSingleReturnVal const&);
+	void visit(FunctionCall const&);
+	void visit(FunctionDefinitionNoReturnVal const&);
+	void visit(FunctionDefinitionSingleReturnVal const&);
+	void visit(FunctionDefinitionMultiReturnVal const&);
 	void visit(Program const&);
 	template <class T>
 	void visit(google::protobuf::RepeatedPtrField<T> const& _repeated_field);
-	void registerFunction(Function const&);
+	void registerFunction(FunctionDefinition const&);
+	void registerFunction(FunctionDefinitionNoReturnVal const&);
+	void registerFunction(FunctionDefinitionSingleReturnVal const&);
+	void registerFunction(FunctionDefinitionMultiReturnVal const&);
 
 	std::string createHex(std::string const& _hexBytes) const;
 	std::string createAlphaNum(std::string const& _strBytes) const;
 	bool isCaseLiteralUnique(Literal const&);
+	void createFunctionStub(int numInParams, int numOutParams);
 
 	std::ostringstream m_output;
 	std::stack<uint8_t> m_numVarsPerScope;
@@ -99,9 +109,14 @@ private:
 	std::stack<bool> m_inForScope;
 	std::stack<std::set<dev::u256>> m_switchLiteralSetPerScope;
 	int32_t m_numFunctions;
-	std::vector<std::pair<int,int>> m_functionVec;
-	static int constexpr maxInputParams = 4;
-	static int constexpr maxOutputParams = 4;
+	// Vector whose index is a function reference, and whose value is the number of input parameters for that function
+	std::vector<int> m_functionVecNoReturnValue;
+	std::vector<int> m_functionVecSingeReturnValue;
+	// Vector whose index is a function reference, and whose value is a pair <num input params, num output params> for
+	// that function
+	std::vector<std::pair<int,int>> m_functionVecMultiReturnValue;
+	static int constexpr modInputParams = 5;
+	static int constexpr modOutputParams = 5;
 };
 }
 }

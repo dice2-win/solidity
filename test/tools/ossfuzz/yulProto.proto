@@ -21,9 +21,53 @@ message VarDecl {
   required Expression expr = 1;
 }
 
+message FunctionCallNoReturnVal {
+  // Indexes a function that does not return anything
+  required uint32 func_index = 1;
+  required Expression in_param1 = 2;
+  required Expression in_param2 = 3;
+  required Expression in_param3 = 4;
+  required Expression in_param4 = 5;
+}
+
+// Used by Expression
+message FunctionCallSingleReturnVal {
+  // Indexes a function that returns exactly one value
+  required uint32 func_index = 1;
+  required Expression in_param1 = 2;
+  required Expression in_param2 = 3;
+  required Expression in_param3 = 4;
+  required Expression in_param4 = 5;
+}
+
 message MultiVarDecl {
-  required int32 func_id = 1;
-  required sfixed32 in_params = 2;
+  // Indexes a function that returns more than one value
+  required uint32 func_index = 1;
+  required Expression in_param1 = 2;
+  required Expression in_param2 = 3;
+  required Expression in_param3 = 4;
+  required Expression in_param4 = 5;
+}
+
+message MultiAssignment {
+  // Indexes a function that returns more than one value
+  required uint32 func_index = 1;
+  required Expression in_param1 = 2;
+  required Expression in_param2 = 3;
+  required Expression in_param3 = 4;
+  required Expression in_param4 = 5;
+  required VarRef out_param1 = 6;
+  required VarRef out_param2 = 7;
+  required VarRef out_param3 = 8;
+  required VarRef out_param4 = 9;
+}
+
+message FunctionCall {
+  oneof functioncall_oneof {
+    FunctionCallNoReturnVal call_zero = 1;
+    MultiVarDecl call_multidecl = 2;
+    MultiAssignment call_multiassign = 3;
+  }
 }
 
 message TypedVarDecl {
@@ -197,18 +241,13 @@ message Expression {
     UnaryOp unop = 4;
     TernaryOp top = 5;
     NullaryOp nop = 6;
+    FunctionCallSingleReturnVal func_expr = 7;
   }
 }
 
 message AssignmentStatement {
   required VarRef ref_id = 1;
   required Expression expr = 2;
-}
-
-message MultiVarAssignmentStatement {
-  required int32 func_id = 1;
-  required sfixed32 in_params = 2;
-  required sfixed32 out_params = 3;
 }
 
 message IfStmt {
@@ -266,21 +305,20 @@ message TerminatingStmt {
 
 message Statement {
   oneof stmt_oneof {
-    VarDecl             decl          = 1;
-    AssignmentStatement assignment    = 2;
-    IfStmt              ifstmt        = 3;
-    StoreFunc           storage_func  = 4;
-    Block               blockstmt     = 5;
-    ForStmt             forstmt       = 6;
-    SwitchStmt          switchstmt    = 7;
-    BreakStmt           breakstmt     = 8;
-    ContinueStmt        contstmt      = 9;
-    LogFunc             log_func      = 10;
-    CopyFunc            copy_func     = 11;
-    ExtCodeCopy         extcode_copy  = 12;
-    TerminatingStmt     terminatestmt = 13;
-    MultiVarDecl        multivardecl  = 14;
-    MultiVarAssignmentStatement multivarassign = 15;
+    VarDecl             decl            = 1;
+    AssignmentStatement assignment      = 2;
+    IfStmt              ifstmt          = 3;
+    StoreFunc           storage_func    = 4;
+    Block               blockstmt       = 5;
+    ForStmt             forstmt         = 6;
+    SwitchStmt          switchstmt      = 7;
+    BreakStmt           breakstmt       = 8;
+    ContinueStmt        contstmt        = 9;
+    LogFunc             log_func        = 10;
+    CopyFunc            copy_func       = 11;
+    ExtCodeCopy         extcode_copy    = 12;
+    TerminatingStmt     terminatestmt   = 13;
+    FunctionCall        functioncall    = 14;
   }
 }
 
@@ -288,14 +326,31 @@ message Block {
   repeated Statement statements = 1;
 }
 
-message Function {
-  required Block statements  = 1;
-  required int32 inparams   = 2;
-  required int32 outparams  = 3;
+// This ensures that proto mutator generates at least one of each type if it creates at least 1 functiondef message.
+message FunctionDefinition {
+  required FunctionDefinitionNoReturnVal fd_zero = 1;
+  required FunctionDefinitionSingleReturnVal fd_one = 2;
+  required FunctionDefinitionMultiReturnVal fd_multi = 3;
+}
+
+message FunctionDefinitionNoReturnVal {
+  required uint32 num_input_params = 1;
+  required Block statements = 2;
+}
+
+message FunctionDefinitionSingleReturnVal {
+  required uint32 num_input_params = 1;
+  required Block statements = 2;
+}
+
+message FunctionDefinitionMultiReturnVal {
+  required uint32 num_input_params = 1;
+  required uint32 num_output_params = 2;
+  required Block statements = 3;
 }
 
 message Program {
-  repeated Function funcs = 1;
+  repeated FunctionDefinition funcs = 1;
 }
 
 package yul.test.yul_fuzzer;
