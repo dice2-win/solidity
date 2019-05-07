@@ -19,6 +19,7 @@
 #include <test/Options.h>
 #include <libdevcore/CommonIO.h>
 #include <libdevcore/JSON.h>
+#include <liblangutil/SourceReferenceFormatterHuman.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/throw_exception.hpp>
@@ -131,10 +132,14 @@ void GasTest::parseExpectations(std::istream& _stream)
 void GasTest::printUpdatedExpectations(std::ostream& _stream, std::string const& _linePrefix) const
 {
 	Json::Value estimates = compiler().gasEstimates(compiler().lastContractName());
-	_stream << _linePrefix << "creation: "
-			<< estimates["creation"]["executionCost"].asString() << " + "
-			<< estimates["creation"]["codeDepositCost"].asString() << " = "
-			<< estimates["creation"]["totalCost"].asString() << std::endl;
+	_stream << _linePrefix
+		<< "creation: "
+		<< estimates["creation"]["executionCost"].asString()
+		<< " + "
+		<< estimates["creation"]["codeDepositCost"].asString()
+		<< " = "
+		<< estimates["creation"]["totalCost"].asString()
+		<< std::endl;
 
 	for (auto kind: {"external", "internal"})
 		if (estimates[kind])
@@ -153,7 +158,7 @@ void GasTest::printUpdatedExpectations(std::ostream& _stream, std::string const&
 }
 
 
-bool GasTest::run(ostream& _stream, string const& _linePrefix, bool)
+bool GasTest::run(ostream& _stream, string const& _linePrefix, bool _formatted)
 {
 	string const versionPragma = "pragma solidity >=0.0;\n";
 	compiler().reset();
@@ -167,18 +172,21 @@ bool GasTest::run(ostream& _stream, string const& _linePrefix, bool)
 	compiler().setOptimiserSettings(settings);
 	compiler().setSources({{"", versionPragma + m_source}});
 
-	if (compiler().parse())
-		if (compiler().analyze())
-			compiler().compile();
+	if (!compiler().parseAndAnalyze() || !compiler().compile())
+	{
+		SourceReferenceFormatterHuman formatter(cerr, _formatted);
+		for (auto const& error: compiler().errors())
+			formatter.printErrorInformation(*error);
+		BOOST_THROW_EXCEPTION(runtime_error("Test contract does not compile."));
+	}
 
 	Json::Value estimates = compiler().gasEstimates(compiler().lastContractName());
 
-	bool success = true;
 
 	auto creation = estimates["creation"];
-	success &= (creation["codeDepositCost"].asString() == toString(m_creationCost.codeDepositCost));
-	success &= (creation["executionCost"].asString() == toString(m_creationCost.executionCost));
-	success &= (creation["totalCost"].asString() == toString(m_creationCost.totalCost));
+	bool success = (creation["codeDepositCost"].asString() == toString(m_creationCost.codeDepositCost)) &&
+		(creation["executionCost"].asString() == toString(m_creationCost.executionCost)) &&
+		(creation["totalCost"].asString() == toString(m_creationCost.totalCost));
 
 	auto check = [&](map<string, string> const& _a, Json::Value const& _b) {
 		for (auto& entry: _a)
@@ -190,17 +198,24 @@ bool GasTest::run(ostream& _stream, string const& _linePrefix, bool)
 	if (!success)
 	{
 		_stream << _linePrefix << "Expected:" << std::endl;
-		_stream << _linePrefix << "  creation: "
-				<< toString(m_creationCost.executionCost) << " + "
-				<< toString(m_creationCost.codeDepositCost) << " = "
-				<< toString(m_creationCost.totalCost) << std::endl;
+		_stream << _linePrefix
+			<< "  creation: "
+			<< toString(m_creationCost.executionCost)
+			<< " + "
+			<< toString(m_creationCost.codeDepositCost)
+			<< " = "
+			<< toString(m_creationCost.totalCost)
+			<< std::endl;
 		auto printExpected = [&](std::string const& _kind, auto const& _expectations)
 		{
 			_stream << _linePrefix << "  " << _kind << ":" << std::endl;
 			for (auto const& entry: _expectations)
-				_stream << _linePrefix << "    "
-						<< (entry.first.empty() ? "fallback" : entry.first) << ": "
-						<< entry.second << std::endl;
+				_stream << _linePrefix
+					<< "    "
+					<< (entry.first.empty() ? "fallback" : entry.first)
+					<< ": "
+					<< entry.second
+					<< std::endl;
 		};
 		if (!m_externalFunctionCosts.empty())
 			printExpected("external", m_externalFunctionCosts);
