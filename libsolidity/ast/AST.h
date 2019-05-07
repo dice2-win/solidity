@@ -161,6 +161,9 @@ public:
 	/// @returns the source unit this scopable is present in.
 	SourceUnit const& sourceUnit() const;
 
+	/// @returns the function definition this scopable is present in or nullptr.
+	FunctionDefinition const* functionDefinition() const;
+
 	/// @returns the source name this scopable is present in.
 	/// Can be combined with annotation().canonicalName (if present) to form a globally unique name.
 	std::string sourceUnitName() const;

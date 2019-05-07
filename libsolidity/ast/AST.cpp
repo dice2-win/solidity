@@ -400,6 +400,19 @@ SourceUnit const& Scopable::sourceUnit() const
 	return dynamic_cast<SourceUnit const&>(*s);
 }
 
+FunctionDefinition const* Scopable::functionDefinition() const
+{
+	ASTNode const* s = scope();
+	solAssert(s, "");
+	while (dynamic_cast<Scopable const*>(s))
+	{
+		if (auto funDef = dynamic_cast<FunctionDefinition const*>(s))
+			return funDef;
+		s = dynamic_cast<Scopable const*>(s)->scope();
+	}
+	return nullptr;
+}
+
 string Scopable::sourceUnitName() const
 {
 	return sourceUnit().annotation().path;
